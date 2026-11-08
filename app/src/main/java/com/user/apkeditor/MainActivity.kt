@@ -56,7 +56,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun processAll() {
+        private fun processAll() {
         if (pickedApkUris.isEmpty()) {
             appendLog("Pilih minimal satu APK dulu.")
             return
@@ -74,49 +74,45 @@ class MainActivity : AppCompatActivity() {
         binding.btnProcess.isEnabled = false
 
         thread {
-            val outDir = File(
-                getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS),
-                "edited_apks"
-            ).apply { mkdirs() }
+            try {
+                val outDir = File(
+                    getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS),
+                    "edited_apks"
+                ).apply { mkdirs() }
 
-            val keystoreFile = File(filesDir, "signing.p12")
-            val (privateKey, cert) = ApkEditor.getOrCreateSigningKey(keystoreFile)
+                appendLog("Menyiapkan kunci sign...")
+                val keystoreFile = File(filesDir, "signing.p12")
+                val (privateKey, cert) = ApkEditor.getOrCreateSigningKey(keystoreFile)
+                appendLog("Kunci sign siap.")
 
-            for ((index, uri) in pickedApkUris.withIndex()) {
-                try {
-                    val inputFile = File(cacheDir, "input_$index.apk")
-                    contentResolver.openInputStream(uri)?.use { input ->
-                        inputFile.outputStream().use { output -> input.copyTo(output) }
+                for ((index, uri) in pickedApkUris.withIndex()) {
+                    try {
+                        val inputFile = File(cacheDir, "input_$index.apk")
+                        contentResolver.openInputStream(uri)?.use { input ->
+                            inputFile.outputStream().use { output -> input.copyTo(output) }
+                        }
+
+                        val originalName = queryDisplayName(uri) ?: "apk_$index.apk"
+                        val outputFile = File(outDir, "edited_$originalName")
+
+                        appendLog("[$originalName] Mengedit...")
+                        ApkEditor.editApk(inputFile, outputFile, options) { appendLog("  $it") }
+
+                        appendLog("[$originalName] Menandatangani ulang...")
+                        ApkEditor.signApk(outputFile, privateKey, cert) { appendLog("  $it") }
+
+                        appendLog("[$originalName] -> Selesai: ${outputFile.absolutePath}")
+                    } catch (e: Exception) {
+                        appendLog("Gagal memproses index $index: ${e.javaClass.simpleName}: ${e.message}")
                     }
-
-                    val originalName = queryDisplayName(uri) ?: "apk_$index.apk"
-                    val outputFile = File(outDir, "edited_$originalName")
-
-                    appendLog("[$originalName] Mengedit...")
-                    ApkEditor.editApk(inputFile, outputFile, options) { appendLog("  $it") }
-
-                    appendLog("[$originalName] Menandatangani ulang...")
-                    ApkEditor.signApk(outputFile, privateKey, cert) { appendLog("  $it") }
-
-                    appendLog("[$originalName] -> Selesai: ${outputFile.absolutePath}")
-                } catch (e: Exception) {
-                    appendLog("Gagal memproses index $index: ${e.message}")
                 }
-            }
 
-            appendLog("\nSemua selesai. Hasil ada di folder:\n${outDir.absolutePath}")
-            runOnUiThread { binding.btnProcess.isEnabled = true }
-        }
-    }
-
-    private fun queryDisplayName(uri: Uri): String? {
-        val cursor = contentResolver.query(uri, null, null, null, null) ?: return null
-        cursor.use {
-            val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-            if (it.moveToFirst() && nameIndex >= 0) {
-                return it.getString(nameIndex)
+                appendLog("\nSemua selesai. Hasil ada di folder:\n${outDir.absolutePath}")
+            } catch (e: Throwable) {
+                appendLog("ERROR FATAL: ${e.javaClass.simpleName}: ${e.message}")
+                appendLog(e.stackTraceToString().take(2000))
+            } finally {
+                runOnUiThread { binding.btnProcess.isEnabled = true }
             }
         }
-        return null
-    }
-}
+        }
