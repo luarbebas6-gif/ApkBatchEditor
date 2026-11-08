@@ -7,6 +7,12 @@ android {
     namespace 'com.user.apkeditor'
     compileSdk 34
 
+    packaging {
+        resources {
+            excludes += ['META-INF/versions/9/OSGI-INF/MANIFEST.MF', 'META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/LICENSE.txt', 'META-INF/NOTICE', 'META-INF/NOTICE.txt']
+        }
+    }
+
     defaultConfig {
         applicationId "com.user.apkeditor"
         minSdk 26
